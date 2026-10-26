@@ -1415,6 +1415,17 @@ add_newdoc('numpy._core.umath', 'floor_divide',
     floor : Round a number to the nearest integer toward minus infinity.
     ceil : Round a number to the nearest integer toward infinity.
 
+    Notes
+    -----
+    For floating-point inputs involving infinity, the quotient follows
+    ``floor(divide(x1, x2))``. An infinite dividend divided by a nonzero finite
+    divisor gives a signed infinity, and a finite dividend divided by an
+    infinite divisor gives a signed zero. These cases can differ from Python's
+    ``//`` operator.
+
+    Finite inputs retain the remainder-based rounding algorithm, which can
+    differ from flooring the rounded result of true division.
+
     Examples
     --------
     >>> import numpy as np

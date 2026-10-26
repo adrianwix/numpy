@@ -564,13 +564,18 @@ npy_floor_divide@c@(@type@ a, @type@ b) {
          */
         return a / b;
     }
-    
+
+    if (NPY_UNLIKELY(npy_isinf(a) || npy_isinf(b))) {
+        /* The quotient is already integral, including signed zero. */
+        return a / b;
+    }
+
     div = npy_divmod@c@(a, b, &mod);
     return div;
 }
 
 /*
- * Python version of divmod.
+ * Python version of divmod, with division's quotient for infinite operands.
  *
  * The implementation is mostly copied from cpython 3.5.
  */
@@ -599,6 +604,12 @@ npy_divmod@c@(@type@ a, @type@ b, @type@ *modulus)
     else {
         /* if mod is zero ensure correct sign */
         mod = npy_copysign@c@(0, b);
+    }
+
+    if (NPY_UNLIKELY(npy_isinf(a) || npy_isinf(b))) {
+        /* Keep the adjusted remainder, including NaNs from fmod. */
+        *modulus = mod;
+        return a / b;
     }
 
     /* snap quotient to nearest integral value */

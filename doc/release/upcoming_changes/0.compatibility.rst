@@ -1,0 +1,13 @@
+Floor division with infinite floating-point operands
+---------------------------------------------------
+`numpy.floor_divide`, ``//`` and ``//=`` now return a signed infinity when an
+infinite dividend is divided by a nonzero finite divisor, and a signed zero
+when a finite dividend is divided by an infinite divisor. Previously, these
+cases could return ``NaN`` or ``-1.0``, following Python's floor division.
+The new results agree with ``floor(divide(x1, x2))`` for these inputs.
+
+The quotient returned by `numpy.divmod` changes consistently. Remainder values
+are unchanged: in particular, an infinite dividend still produces a ``NaN``
+remainder. Consequently, `numpy.divmod` may signal an invalid operation for
+that remainder even when the floor-division quotient alone is valid.
+Finite-input rounding and integer division are unchanged.

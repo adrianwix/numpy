@@ -302,6 +302,27 @@ def _signs(dt):
 
 class TestModulus:
 
+    @pytest.mark.parametrize("dtype", np.typecodes["Float"])
+    @pytest.mark.parametrize("a,b,quotient,remainder", [
+        (np.inf, 1., np.inf, np.nan),
+        (np.inf, -1., -np.inf, np.nan),
+        (-np.inf, 1., -np.inf, np.nan),
+        (-np.inf, -1., np.inf, np.nan),
+        (1., -np.inf, -0., -np.inf),
+        (-1., np.inf, -0., np.inf),
+    ])
+    def test_float_divmod_infinite_operands(self, dtype, a, b, quotient,
+                                           remainder):
+        x = np.dtype(dtype).type(a)
+        y = np.dtype(dtype).type(b)
+        with np.errstate(invalid="ignore"):
+            actual_q, actual_r = divmod(x, y)
+            assert_equal(actual_q, x // y)
+            assert_equal(actual_r, x % y)
+        assert_equal(actual_q, quotient)
+        assert_equal(np.signbit(actual_q), np.signbit(quotient))
+        assert_equal(actual_r, remainder)
+
     def test_modulus_basic(self):
         dt = np.typecodes['AllInteger'] + np.typecodes['Float']
         for op in [floordiv_and_mod, divmod]:

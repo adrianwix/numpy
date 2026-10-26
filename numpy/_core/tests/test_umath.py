@@ -716,6 +716,68 @@ class TestDivision:
         assert_equal(np.signbit(x // 1), 0)
         assert_equal(np.signbit((-x) // 1), 1)
 
+    @pytest.mark.parametrize("dtype", np.typecodes["Float"])
+    @pytest.mark.parametrize("op", [np.floor_divide, operator.floordiv,
+                                    operator.ifloordiv])
+    @pytest.mark.parametrize("a,b,expected", [
+        (np.inf, 1., np.inf),
+        (np.inf, -1., -np.inf),
+        (-np.inf, 1., -np.inf),
+        (-np.inf, -1., np.inf),
+        (1., -np.inf, -0.),
+        (-1., np.inf, -0.),
+    ])
+    def test_floor_division_infinite_operands(self, dtype, op, a, b, expected):
+        # gh-23860: scalar, zero-dimensional, contiguous and strided operands.
+        for x, y, extract, context in interesting_binop_operands(a, b, dtype):
+            if op is operator.ifloordiv:
+                x = x.copy()
+            with np.errstate(invalid="ignore"):
+                result = extract(op(x, y))
+            assert_equal(result, expected, err_msg=context)
+            assert_equal(np.signbit(result), np.signbit(expected),
+                         err_msg=context)
+            assert_equal(result.dtype, np.dtype(dtype))
+
+    @pytest.mark.parametrize("dtype", np.typecodes["Float"])
+    def test_floor_division_infinite_inplace_view(self, dtype):
+        base = np.array([np.inf, 17., 1., 19., -1., 23.], dtype=dtype)
+        view = base[::2]
+        alias = view
+        with np.errstate(invalid="ignore"):
+            view //= np.array([2., -np.inf, np.inf], dtype=dtype)
+        assert view is alias
+        assert_equal(base, [np.inf, 17., -0., 19., -0., 23.])
+        assert_equal(np.signbit(view), [False, True, True])
+
+    @pytest.mark.parametrize("dtype", np.typecodes["Float"])
+    def test_floor_division_infinite_ufunc_methods(self, dtype):
+        a = np.array([np.inf, 1., np.inf], dtype=dtype)
+        b = np.array([2., -np.inf, np.inf], dtype=dtype)
+        out = np.full(3, 17., dtype=dtype)
+        with np.errstate(invalid="ignore"):
+            np.floor_divide(a, b, out=out, where=[True, True, False])
+            assert_equal(out, [np.inf, -0., 17.])
+            assert_equal(np.signbit(out), [False, True, False])
+            np.floor_divide.at(a, [0, 1], b[:2])
+            assert_equal(a, [np.inf, -0., np.inf])
+            assert_equal(np.signbit(a), [False, True, False])
+            values = np.array([np.inf, 2., 2.], dtype=dtype)
+            assert_equal(np.floor_divide.reduce(values), np.inf)
+            assert_equal(np.floor_divide.accumulate(values), np.inf)
+
+    @pytest.mark.skipif(IS_WASM, reason="fp errors don't work in wasm")
+    @pytest.mark.parametrize("dtype", np.typecodes["Float"])
+    def test_floor_division_infinite_errors(self, dtype):
+        a = np.array([np.inf, -np.inf, 1., -1.], dtype=dtype)
+        b = np.array([1., -1., -np.inf, np.inf], dtype=dtype)
+        with np.errstate(all="raise"):
+            result = np.floor_divide(a, b)
+        assert_equal(result, [np.inf, np.inf, -0., -0.])
+        with np.errstate(invalid="raise"):
+            with pytest.raises(FloatingPointError, match="invalid"):
+                np.floor_divide(a[0], np.array(np.inf, dtype=dtype))
+
     @pytest.mark.skipif(hasattr(np.__config__, "blas_ssl2_info"),
             reason="gh-22982")
     @pytest.mark.skipif(IS_WASM, reason="fp errors don't work in wasm")
@@ -782,6 +844,37 @@ def _signs(dt):
 
 
 class TestRemainder:
+
+    @pytest.mark.parametrize("dtype", np.typecodes["Float"])
+    @pytest.mark.parametrize("a,b,quotient,remainder", [
+        (np.inf, 1., np.inf, np.nan),
+        (np.inf, -1., -np.inf, np.nan),
+        (-np.inf, 1., -np.inf, np.nan),
+        (-np.inf, -1., np.inf, np.nan),
+        (1., np.inf, 0., 1.),
+        (1., -np.inf, -0., -np.inf),
+        (-1., np.inf, -0., np.inf),
+        (-1., -np.inf, 0., -1.),
+        (0., -np.inf, -0., -0.),
+        (-0., np.inf, -0., 0.),
+        (np.inf, np.inf, np.nan, np.nan),
+        (np.nan, np.inf, np.nan, np.nan),
+        (np.inf, np.nan, np.nan, np.nan),
+    ])
+    def test_float_divmod_infinite_operands(self, dtype, a, b, quotient,
+                                           remainder):
+        x = np.array([a], dtype=dtype)
+        y = np.array([b], dtype=dtype)
+        with np.errstate(invalid="ignore"):
+            actual_q, actual_r = np.divmod(x, y)
+            assert_equal(actual_q, np.floor_divide(x, y))
+            assert_equal(actual_r, np.remainder(x, y))
+        assert_equal(actual_q, quotient)
+        assert_equal(actual_r, remainder)
+        if not np.isnan(quotient):
+            assert_equal(np.signbit(actual_q), np.signbit(quotient))
+        if not np.isnan(remainder):
+            assert_equal(np.signbit(actual_r), np.signbit(remainder))
 
     def test_remainder_basic(self):
         dt = np.typecodes['AllInteger'] + np.typecodes['Float']
