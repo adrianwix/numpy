@@ -769,11 +769,11 @@ class TestDivision:
     @pytest.mark.skipif(IS_WASM, reason="fp errors don't work in wasm")
     @pytest.mark.parametrize("dtype", np.typecodes["Float"])
     def test_floor_division_infinite_errors(self, dtype):
-        a = np.array([np.inf, -np.inf, 1., -1.], dtype=dtype)
-        b = np.array([1., -1., -np.inf, np.inf], dtype=dtype)
+        a = np.array([np.inf, -np.inf, 1., -1., np.inf, 0.], dtype=dtype)
+        b = np.array([1., -1., -np.inf, np.inf, 0., np.inf], dtype=dtype)
         with np.errstate(all="raise"):
             result = np.floor_divide(a, b)
-        assert_equal(result, [np.inf, np.inf, -0., -0.])
+        assert_equal(result, [np.inf, np.inf, -0., -0., np.inf, 0.])
         with np.errstate(invalid="raise"):
             with pytest.raises(FloatingPointError, match="invalid"):
                 np.floor_divide(a[0], np.array(np.inf, dtype=dtype))
@@ -844,6 +844,24 @@ def _signs(dt):
 
 
 class TestRemainder:
+
+    @pytest.mark.skipif(IS_WASM, reason="fp errors don't work in wasm")
+    @pytest.mark.xfail(
+        sys.platform in ["android", "darwin", "ios"],
+        reason="This platform seems to not give the correct 'invalid' warning"
+    )
+    @pytest.mark.parametrize("dtype", np.typecodes["Float"])
+    @pytest.mark.parametrize("op", [np.remainder, np.divmod, operator.mod,
+                                    divmod])
+    @pytest.mark.parametrize("scalar", [False, True])
+    def test_infinite_dividend_invalid_errors(self, dtype, op, scalar):
+        a = np.array([np.inf], dtype=dtype)
+        b = np.array([1.], dtype=dtype)
+        if scalar:
+            a, b = a[0], b[0]
+        with np.errstate(invalid="raise"):
+            with pytest.raises(FloatingPointError, match="invalid"):
+                op(a, b)
 
     @pytest.mark.parametrize("dtype", np.typecodes["Float"])
     @pytest.mark.parametrize("a,b,quotient,remainder", [

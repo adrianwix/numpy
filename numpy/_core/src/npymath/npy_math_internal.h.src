@@ -549,24 +549,21 @@ NPY_INPLACE @type@
 npy_floor_divide@c@(@type@ a, @type@ b) {
     @type@ div, mod;
     
-    if (NPY_UNLIKELY(!b) || 
+    if (NPY_UNLIKELY(!b || npy_isinf(a) || npy_isinf(b)) ||
         NPY_UNLIKELY(IS_ARM64_CLANG && sizeof(@type@) == sizeof(long double) && (npy_isnan(a) || npy_isnan(b)))) {
         /*
-         * Handle two cases:
+         * Handle three cases:
          * 1. in2 == 0 (and not NaN): normal division will give the correct
          *    result (Inf or NaN). `divmod` may set additional FPE for the modulo
          *    evaluating to NaN.
-         * 2. ARM64 with Clang: Special handling to avoid FPE with float128
+         * 2. Either operand is infinite: the quotient is already integral,
+         *    including signed zero. Avoid an invalid remainder calculation.
+         * 3. ARM64 with Clang: Special handling to avoid FPE with float128
          *    TODO: This is a workaround for a known Clang issue on ARM64 where 
          *    float128 operations trigger incorrect FPE behavior. This can be 
          *    removed once fixed:
          *    https://github.com/llvm/llvm-project/issues/59924
          */
-        return a / b;
-    }
-
-    if (NPY_UNLIKELY(npy_isinf(a) || npy_isinf(b))) {
-        /* The quotient is already integral, including signed zero. */
         return a / b;
     }
 
